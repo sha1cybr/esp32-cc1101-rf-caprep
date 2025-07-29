@@ -1,6 +1,10 @@
 # esp32-cc1101-rf-caprep
 ESP32 + CC1101 RF signal capture and replay tool. Record, analyze, and retransmit radio frequency signals using the ESP32 microcontroller paired with a CC1101 sub-GHz transceiver module.
 
+<p style="text-align: center;">
+    <img src="resources/module.jpeg" width="50%"/>
+</p>
+
 ## Features
 
 - 📡 Record RF signals with names
@@ -71,6 +75,10 @@ ESP32 Pin  ->  CC1101 Pin
    - Save/Load signals to/from flash memory
 
 ## Web Interface Features
+
+<p style="text-align: center;">
+    <img src="resources/webui.png" width="50%"/>
+</p>
 
 - Record new signals with custom names
 - List all stored signals
