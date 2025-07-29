@@ -89,6 +89,14 @@ ESP32 Pin  ->  CC1101 Pin
 - Save/Load signals to/from flash memory
 - View detailed signal data
 
+## Homeassistant integration
+esp32-rf exposes a REST API you can call and allows you to re-transmit signals on demand.
+See [Homeassistant configuration example](/homeassistant.yaml) for reference.
+
+<p style="text-align: center;">
+    <img src="resources/ha.jpeg" width="30%"/>
+</p>
+
 ## Technical Details
 
 - RF Frequency: 433.92 MHz
