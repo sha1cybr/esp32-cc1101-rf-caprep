@@ -240,6 +240,81 @@ bool deserializeJsonToSignals(const String& jsonString) {
     return true;
 }
 
+// Parse text format backup (from dump_signals output)
+bool parseTextFormatBackup(const String& textData) {
+    recordedSignals.clear();
+    
+    int pos = 0;
+    String data = textData;
+    
+    while (pos < data.length()) {
+        // Find "Signal Name: "
+        int nameStart = data.indexOf("Signal Name: ", pos);
+        if (nameStart == -1) break;
+        
+        nameStart += 13; // Length of "Signal Name: "
+        int nameEnd = data.indexOf("\n", nameStart);
+        if (nameEnd == -1) break;
+        
+        String signalName = data.substring(nameStart, nameEnd);
+        signalName.trim();
+        
+        // Find "Timings ("
+        int timingsStart = data.indexOf("Timings (", nameEnd);
+        if (timingsStart == -1) break;
+        
+        // Find the opening bracket [
+        int bracketStart = data.indexOf("[", timingsStart);
+        if (bracketStart == -1) break;
+        
+        // Find the closing bracket ]
+        int bracketEnd = data.indexOf("]", bracketStart);
+        if (bracketEnd == -1) break;
+        
+        // Extract timings string
+        String timingsStr = data.substring(bracketStart + 1, bracketEnd);
+        
+        // Parse timings
+        std::vector<int> timings;
+        int timingPos = 0;
+        while (timingPos < timingsStr.length()) {
+            // Skip whitespace and commas
+            while (timingPos < timingsStr.length() && 
+                   (timingsStr[timingPos] == ' ' || 
+                    timingsStr[timingPos] == ',' || 
+                    timingsStr[timingPos] == '\n' || 
+                    timingsStr[timingPos] == '\r')) {
+                timingPos++;
+            }
+            
+            if (timingPos >= timingsStr.length()) break;
+            
+            // Read number
+            String numStr = "";
+            while (timingPos < timingsStr.length() && 
+                   timingsStr[timingPos] >= '0' && 
+                   timingsStr[timingPos] <= '9') {
+                numStr += timingsStr[timingPos];
+                timingPos++;
+            }
+            
+            if (numStr.length() > 0) {
+                timings.push_back(numStr.toInt());
+            }
+        }
+        
+        if (timings.size() > 0) {
+            recordedSignals[signalName] = timings;
+            Serial.printf("Parsed signal '%s' with %d timings\n", 
+                         signalName.c_str(), timings.size());
+        }
+        
+        pos = bracketEnd + 1;
+    }
+    
+    return recordedSignals.size() > 0;
+}
+
 // Save signals to SPIFFS
 bool saveSignalsToFile() {
   String json = serializeSignalsToJson();
@@ -308,20 +383,24 @@ void handleRoot() {
   html += "        button { background: #4CAF50; color: white; padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; margin: 5px; }";
   html += "        button.red { background: #f44336; }";
   html += "        button.red:hover { background: #da190b; }";
-  html += "        button.blue { background: #2196F3; }"; // New style for Rename button
+  html += "        button.blue { background: #2196F3; }";
   html += "        button.blue:hover { background: #0b7dda; }";
+  html += "        button.orange { background: #ff9800; }";
+  html += "        button.orange:hover { background: #e68900; }";
   html += "        button:hover { background: #45a049; }";
   html += "        input[type=\"text\"] { padding: 8px; margin: 5px; border: 1px solid #ddd; border-radius: 4px; width: calc(100% - 130px); }";
+  html += "        input[type=\"file\"] { padding: 8px; margin: 5px; border: 1px solid #ddd; border-radius: 4px; }";
   html += "        .signal-list { margin-top: 10px; }";
   html += "        .signal-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; margin: 5px 0; background: #f9f9f9; border-radius: 5px; flex-wrap: wrap; }";
-  html += "        .signal-item span { flex-basis: 50%; }"; // Adjusted for more buttons
-  html += "        .signal-item div { flex-basis: 48%; text-align: right; }"; // Adjusted for more buttons
+  html += "        .signal-item span { flex-basis: 50%; }";
+  html += "        .signal-item div { flex-basis: 48%; text-align: right; }";
   html += "        @media (max-width: 600px) { .signal-item { flex-direction: column; align-items: flex-start; } .signal-item span, .signal-item div { flex-basis: 100%; text-align: left; } }";
   html += "        .status { margin: 10px 0; padding: 10px; border-radius: 4px; }";
   html += "        .status.success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }";
   html += "        .status.error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }";
   html += "        .status.info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }";
   html += "        #recordingStatus { margin-top: 10px; font-weight: bold; color: #0c5460; }";
+  html += "        .upload-section { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }";
   html += "    </style>";
   html += "</head>";
   html += "<body>";
@@ -329,10 +408,19 @@ void handleRoot() {
   html += "        <h1>ESP32 RF Controller</h1>";
   html += "        ";
   html += "        <div class=\"section\">";
-  html += "            <h3>📡 Record New Signal</h3>";
+  html += "            <h3>Record New Signal</h3>";
   html += "            <input type=\"text\" id=\"recordName\" placeholder=\"Enter signal name\" />";
   html += "            <button onclick=\"startRecording()\">Record Signal</button>";
   html += "            <div id=\"recordingStatus\"></div>";
+  html += "        </div>";
+  html += "        ";
+  html += "        <div class=\"section\">";
+  html += "            <h3>Upload Backup</h3>";
+  html += "            <div class=\"upload-section\">";
+  html += "                <input type=\"file\" id=\"uploadFile\" accept=\".json,.txt\" />";
+  html += "                <button class=\"orange\" onclick=\"uploadBackup()\">Upload Backup</button>";
+  html += "            </div>";
+  html += "            <div id=\"uploadStatus\"></div>";
   html += "        </div>";
   html += "        ";
   html += "        <div class=\"section\">";
@@ -340,7 +428,7 @@ void handleRoot() {
   html += "            <button onclick=\"saveSignals()\">Save Signals</button>";
   html += "            <button onclick=\"loadSignals()\">Load Signals</button>";
   html += "            <button class=\"red\" onclick=\"clearAllSignals()\">Clear All Signals</button>";
-  html += "            <button class=\"blue\" onclick=\"window.open('/dump_signals', '_blank')\">Show All Signals</button>"; // ADDED BUTTON
+  html += "            <button class=\"blue\" onclick=\"window.open('/dump_signals', '_blank')\">Show All Signals</button>";
   html += "        </div>";
   html += "        ";
   html += "        <div class=\"section\">";
@@ -356,7 +444,7 @@ void handleRoot() {
   html += "            if (!type) type = 'info';";
   html += "            const statusDiv = document.getElementById('statusMessage');";
   html += "            statusDiv.innerHTML = '<div class=\\\"status ' + type + '\\\">' + message + '</div>';";
-  html += "            setTimeout(function() { statusDiv.innerHTML = ''; }, 3000);"; // Clear status after 3 seconds
+  html += "            setTimeout(function() { statusDiv.innerHTML = ''; }, 3000);";
   html += "        }";
 
   html += "        function startRecording() {";
@@ -375,7 +463,7 @@ void handleRoot() {
   html += "                    showStatus(data, type);";
   html += "                    if (type === 'success') {";
   html += "                        document.getElementById('recordName').value = '';";
-  html += "                        refreshSignals();"; // Refresh list after successful record
+  html += "                        refreshSignals();";
   html += "                    }";
   html += "                })";
   html += "                .catch(function(error) {";
@@ -384,6 +472,48 @@ void handleRoot() {
   html += "                });";
   html += "        }";
 
+  html += "        function uploadBackup() {";
+  html += "            const fileInput = document.getElementById('uploadFile');";
+  html += "            if (!fileInput.files || fileInput.files.length === 0) {";
+  html += "                showStatus('Please select a backup file to upload.', 'error');";
+  html += "                return;";
+  html += "            }";
+  html += "            ";
+  html += "            const file = fileInput.files[0];";
+  html += "            const reader = new FileReader();";
+  html += "            ";
+  html += "            reader.onload = function(e) {";
+  html += "                const content = e.target.result;";
+  html += "                ";
+  html += "                document.getElementById('uploadStatus').innerHTML = 'Uploading backup...';";
+  html += "                ";
+  html += "                fetch('/upload', {";
+  html += "                    method: 'POST',";
+  html += "                    headers: { 'Content-Type': 'application/json' },";
+  html += "                    body: content";
+  html += "                })";
+  html += "                .then(function(response) { return response.text(); })";
+  html += "                .then(function(data) {";
+  html += "                    document.getElementById('uploadStatus').innerHTML = '';";
+  html += "                    const type = data.includes('Success') ? 'success' : 'error';";
+  html += "                    showStatus(data, type);";
+  html += "                    if (type === 'success') {";
+  html += "                        fileInput.value = '';";
+  html += "                        refreshSignals();";
+  html += "                    }";
+  html += "                })";
+  html += "                .catch(function(error) {";
+  html += "                    document.getElementById('uploadStatus').innerHTML = '';";
+  html += "                    showStatus('Upload failed: ' + error, 'error');";
+  html += "                });";
+  html += "            };";
+  html += "            ";
+  html += "            reader.onerror = function() {";
+  html += "                showStatus('Error reading file.', 'error');";
+  html += "            };";
+  html += "            ";
+  html += "            reader.readAsText(file);";
+  html += "        }";
 
   html += "        function transmitSignal(name) {";
   html += "            showStatus('Transmitting ' + name + '...', 'info');";
@@ -421,12 +551,11 @@ void handleRoot() {
   html += "                    const type = data.includes('Success') ? 'success' : 'error';";
   html += "                    showStatus(data, type);";
   html += "                    if (type === 'success') {";
-  html += "                        refreshSignals();"; // Refresh list after successful rename
+  html += "                        refreshSignals();";
   html += "                    }";
   html += "                })";
   html += "                .catch(function(error) { showStatus('Rename failed: ' + error, 'error'); });";
   html += "        }";
-
 
   html += "        function saveSignals() {";
   html += "            showStatus('Saving signals...', 'info');";
@@ -637,6 +766,37 @@ void handleDumpSignals() {
     server.send(200, "text/plain", output); // Send as plain text
 }
 
+// Handles uploading backup files (text format from dump_signals)
+void handleUpload() {
+    if (server.hasArg("plain") == false) {
+        server.send(400, "text/plain", "Error: No data received.");
+        return;
+    }
+    
+    String backupData = server.arg("plain");
+    
+    if (backupData.length() == 0) {
+        server.send(400, "text/plain", "Error: Empty backup file.");
+        return;
+    }
+    
+    Serial.println("Received backup data, attempting to parse...");
+    
+    // Parse text format backup (from dump_signals output)
+    if (parseTextFormatBackup(backupData)) {
+        // Successfully parsed, now save to file
+        if (saveSignalsToFile()) {
+            int signalCount = recordedSignals.size();
+            String message = "Success: Backup uploaded! " + String(signalCount) + " signal(s) restored.";
+            Serial.println(message);
+            server.send(200, "text/plain", message);
+        } else {
+            server.send(500, "text/plain", "Error: Backup parsed but failed to save to file.");
+        }
+    } else {
+        server.send(400, "text/plain", "Error: Invalid backup format. Must be text dump format from 'Show All Signals'.");
+    }
+}
 
 // --- Setup Function ---
 void setup() {
@@ -703,6 +863,7 @@ void setup() {
   server.on("/rename", HTTP_POST, handleRenameSignal); 
   server.on("/clearall", HTTP_POST, handleClearAll);
   server.on("/dump_signals", HTTP_GET, handleDumpSignals); // Route for dumping all signals
+  server.on("/upload", HTTP_POST, handleUpload);
 
   // Start the web server
   Serial.println("Starting web server...");
