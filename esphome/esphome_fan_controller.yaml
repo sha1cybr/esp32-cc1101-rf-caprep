@@ -59,10 +59,7 @@ web_server:
 # across all fans (defined in cc1101_fan_controller.h).
 #
 # Known device addresses:
-#   Ben   → 0x1AC12
-#   Lavi  → 0xB9815
-#   Lulu  → 0x6C595
-#   Mamad → 0x034EB
+#   My Fan   → 0x1AC12
 #
 # To add a new fan:
 #   1. Capture its signal with the Arduino recorder
