@@ -1,0 +1,145 @@
+# ============================================================
+# ESPHome RF Fan Controller — CC1101 @ 433.92 MHz ASK/OOK
+# ============================================================
+# Protocol: 29-bit messages  (20-bit device address + 9-bit command)
+#
+# Wiring (ESP32 → CC1101 module):
+#   GPIO 18 → SCK        GPIO 5  → CSN
+#   GPIO 19 → MISO       GPIO 25 → GDO0 (TX data)
+#   GPIO 23 → MOSI       GPIO 26 → GDO2 (RX, unused here)
+#
+# To change pins, edit the #defines in cc1101_fan_controller.h
+# or override via build_flags below.
+# ============================================================
+
+esphome:
+  name: fan-controller
+  friendly_name: RF Fan Controller
+  includes:
+    - cc1101_fan_controller.h
+  libraries:
+    - SPI
+    - CC1101-ESP-Arduino=https://github.com/wischbgr/CC1101-ESP-Arduino.git
+  on_boot:
+    priority: 600
+    then:
+      - lambda: 'fan_ctrl.begin();'
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+logger:
+
+api:
+  encryption:
+    key: "" # TODO: Generate a random key:  esphome wizard, or https://esphome.io/components/api
+
+ota:
+  - platform: esphome
+    password: "" # TODO: Generate a random password:  esphome wizard, or https://esphome.io/components/api
+
+wifi:
+  ssid: "" # TODO: Type in your WiFi SSID
+  password: "" # TODO: Type in your WiFi password
+  ap:
+    ssid: "Fan-Controller-AP"
+    password: "fan12345678"
+
+captive_portal:
+
+web_server:
+  port: 80
+
+# ============================================================
+# FAN CONTROLS
+# ============================================================
+# Each fan has a unique 20-bit address.  Commands are shared
+# across all fans (defined in cc1101_fan_controller.h).
+#
+# Known device addresses:
+#   Ben   → 0x1AC12
+#   Lavi  → 0xB9815
+#   Lulu  → 0x6C595
+#   Mamad → 0x034EB
+#
+# To add a new fan:
+#   1. Capture its signal with the Arduino recorder
+#   2. Decode the 20-bit address
+#   3. Copy a select + buttons block below, update name, id & address
+# ============================================================
+
+# ── Raw Command Input (for protocol exploration) ────────────
+
+number:
+  - platform: template
+    name: "Raw Command Code"
+    id: raw_cmd_code
+    icon: "mdi:console"
+    optimistic: true
+    min_value: 0
+    max_value: 511
+    step: 1
+    initial_value: 0
+    mode: box
+
+# ── Speed Selectors ──────────────────────────────────────────
+
+select:
+  - platform: template
+    name: "My Fan - Speed"
+    id: my_fan_speed
+    icon: "mdi:fan"
+    optimistic: true
+    options:
+      - "Speed 1"
+      - "Speed 2"
+      - "Speed 3"
+      - "Speed 4"
+      - "Speed 5"
+      - "Speed 6"
+    initial_option: "Speed 1"
+    on_value:
+      - lambda: |-
+          static const uint16_t cmds[] = {FAN_CMD_SPEED1, FAN_CMD_SPEED2, FAN_CMD_SPEED3, FAN_CMD_SPEED4, FAN_CMD_SPEED5, FAN_CMD_SPEED6};
+          if (i >= 0 && i <= 5) fan_ctrl.send_command(0x1AC12, cmds[i]); # TODO: Replace 0x1AC12 with your fan's address. Typically found on the remote control.
+
+# ── Buttons (Off / Light / Invert) ──────────────────────────
+
+button:
+  # ── Ben Fan ──
+  - platform: template
+    name: "My Fan - Toggle"
+    icon: "mdi:power"
+    on_press:
+      - lambda: 'fan_ctrl.send_command(0x1AC12, FAN_CMD_TOGGLE);'
+
+  - platform: template
+    name: "My Fan - Light"
+    icon: "mdi:lightbulb"
+    on_press:
+      - lambda: 'fan_ctrl.send_command(0x1AC12, FAN_CMD_LIGHT);'
+
+  - platform: template
+    name: "My Fan - Invert"
+    icon: "mdi:swap-vertical"
+    on_press:
+      - lambda: 'fan_ctrl.send_command(0x1AC12, FAN_CMD_INVERT);'
+
+  # ── RF Signal Recorder ──
+  - platform: template
+    name: "Record RF Signal"
+    icon: "mdi:radio-tower"
+    on_press:
+      - lambda: 'fan_ctrl.record_signal();'
+
+  # ── Raw Command Sender (My Fan) ──
+  - platform: template
+    name: "Send Raw Command (My Fan)"
+    icon: "mdi:send"
+    on_press:
+      - lambda: |-
+          uint16_t cmd = (uint16_t)id(raw_cmd_code).state;
+          ESP_LOGI("raw_cmd", "Sending raw command %d (0x%03X) to My Fan", cmd, cmd);
+          fan_ctrl.send_command(0x1AC12, cmd);
