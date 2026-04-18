@@ -83,14 +83,8 @@ ESP32 Pin  ->  CC1101 Pin
 3. Copy an existing fan block in `esphome_fan_controller.yaml`, update the name, id, and address.
 4. Re-flash with `esphome run`.
 
-### Known Device Addresses
-
-| Fan   | Address   |
-|-------|-----------|
-| Ben   | `0x1AC12` |
-| Lavi  | `0xB9815` |
-| Lulu  | `0x6C595` |
-| Mamad | `0x034EB` |
+### Device Addresses
+See the back of your remote. They usually put a sticker on with the device ID in hexadecimal
 
 ### RF Protocol Details
 
