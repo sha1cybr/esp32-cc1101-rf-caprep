@@ -130,3 +130,25 @@ number:
     step: 1
     initial_value: 0
     mode: box
+
+# Diagnostics: why and when it last restarted, and how well it hears the Wi-Fi.
+# Added after it dropped off the network on 17.11 and stayed off until power-cycled.
+debug:
+  update_interval: 60s
+
+text_sensor:
+  - platform: debug
+    reset_reason:
+      name: "Reset Reason"
+
+sensor:
+  - platform: uptime
+    name: "Uptime"
+  - platform: wifi_signal
+    name: "Wi-Fi Signal"
+    update_interval: 60s
+  - platform: debug
+    free:
+      name: "Free Heap"
+    min_free:
+      name: "Min Free Heap"
